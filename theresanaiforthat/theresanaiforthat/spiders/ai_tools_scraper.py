@@ -31,7 +31,7 @@ class AIToolSiteCrawler(scrapy.Spider):
             tool_absolute_url = response.urljoin(relative_path)
             yield scrapy.Request(tool_absolute_url, callback=self.savi_ai_tool_page, meta={'relative_path' : relative_path})
 
-        next_page = response.css('div.pagination_inner a.next::attr(href)').get()
+        next_page = response.xpath('//a[text()="Next"]/@href').get()
 
         if next_page:
             next_page_url = response.urljoin(next_page)
