@@ -1,13 +1,24 @@
+""" This script validates URLs in a MySQL database table. It normalizes the URLs, checks if they are valid, and if they are reachable. It also checks if the domain is blacklisted. The results are saved in a CSV file. """
+
 import os
-import requests
-from dotenv import load_dotenv
+from urllib.parse import urlparse, urlunparse
+
 import mysql.connector
 import pandas as pd
+import requests
 import validators
-from urllib.parse import urlparse, urlunparse
+from dotenv import load_dotenv
 
 
 def normalize_url(url):
+    """Normalize a URL by removing query and fragment, ensuring https, removing 'www.', and removing trailing slash unless root.
+
+    Parameters:
+        url (str): The URL to normalize.
+
+    Returns:
+        str: The normalized URL.
+    """
     if not isinstance(url, str):
         return url
     url = url.strip()
@@ -19,7 +30,7 @@ def normalize_url(url):
     scheme = "https"
     netloc = parsed.netloc.lower()
 
-    # Optionally remove 'www.'
+    # Remove 'www.'
     if netloc.startswith("www."):
         netloc = netloc[4:]
 
@@ -43,6 +54,14 @@ def normalize_url(url):
 
 
 def get_domain(url):
+    """Get the domain from a URL.
+
+    Parameters:
+        url (str): The URL to extract the domain from.
+
+    Returns:
+        str: The domain.
+    """
     if not isinstance(url, str):
         return None
     parsed = urlparse(url)
@@ -50,6 +69,16 @@ def get_domain(url):
 
 
 def is_good_link(url, domain, blacklisted_domains):
+    """Check if a URL is a good link.
+
+    Parameters:
+        url (str): The URL to check.
+        domain (str): The domain of the URL.
+        blacklisted_domains (set): The set of blacklisted domains.
+
+    Returns:
+        bool: True if the URL is a good link, False otherwise.
+    """
     if not isinstance(url, str):
         return False
     # Check validity of final URL
@@ -62,6 +91,16 @@ def is_good_link(url, domain, blacklisted_domains):
 
 
 def get_response_status_code(url, proxy_url=None, timeout=60):
+    """Get the response status code of a URL.
+
+    Parameters:
+        url (str): The URL to check.
+        proxy_url (str): The proxy URL to use.
+        timeout (int): The timeout in seconds.
+
+    Returns:
+        int: The response status code if the URL is reachable, False otherwise.
+    """
     # Check if the URL is valid
     if not validators.url(url):
         return False
@@ -77,6 +116,7 @@ def get_response_status_code(url, proxy_url=None, timeout=60):
 
 
 def main():
+    """Main function."""
     # Load environment variables
     load_dotenv()
     MYSQL_HOST = os.getenv("MYSQL_HOST")
