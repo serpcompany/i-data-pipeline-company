@@ -1,0 +1,11 @@
+youtu.be
+youtube.com
+apps.apple.com
+play.google.com
+chrome.google.com
+reddit.com
+twitter.com
+x.com
+huggingface.co
+bing.com
+azure.microsoft.com
