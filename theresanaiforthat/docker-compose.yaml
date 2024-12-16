@@ -1,0 +1,19 @@
+services:
+  ai-db:
+    image: postgres
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_DB: ${POSTGRES_DB}
+    shm_size: 128mb
+    volumes:
+      - "./ai_tool_postgres_data:/var/lib/postgresql/data:rw"
+    ports:
+      - "5432:5432"
+
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - "8080:8080"

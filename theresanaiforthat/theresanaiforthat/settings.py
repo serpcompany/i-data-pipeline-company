@@ -17,7 +17,7 @@ NEWSPIDER_MODULE = "theresanaiforthat.spiders"
 #USER_AGENT = "theresanaiforthat (+http://www.yourdomain.com)"
 
 # Obey robots.txt rules
-ROBOTSTXT_OBEY = True
+ROBOTSTXT_OBEY = False
 
 # Configure maximum concurrent requests performed by Scrapy (default: 16)
 #CONCURRENT_REQUESTS = 32
@@ -62,9 +62,11 @@ ROBOTSTXT_OBEY = True
 
 # Configure item pipelines
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
-#ITEM_PIPELINES = {
-#    "theresanaiforthat.pipelines.TheresanaiforthatPipeline": 300,
-#}
+ITEM_PIPELINES = {
+   "theresanaiforthat.pipelines.TheresanaiforthatPipeline": 300,
+   "theresanaiforthat.pipelines.PostgreSQLPipeline": 250,
+
+}
 
 # Enable and configure the AutoThrottle extension (disabled by default)
 # See https://docs.scrapy.org/en/latest/topics/autothrottle.html
@@ -90,3 +92,30 @@ ROBOTSTXT_OBEY = True
 # Set settings whose default value is deprecated to a future-proof value
 TWISTED_REACTOR = "twisted.internet.asyncioreactor.AsyncioSelectorReactor"
 FEED_EXPORT_ENCODING = "utf-8"
+
+# Enable the retry mechanism (enabled by default)
+RETRY_ENABLED = True
+# Number of retries for failed requests
+RETRY_TIMES = 2  # Default is 2; this will try a total of 3 attempts (1 original + 2 retries)
+# Retry only on specific HTTP response codes
+RETRY_HTTP_CODES = [500, 502, 503, 504, 408]  # Add or customize the HTTP codes as needed
+# Set the priority for retry requests
+RETRY_PRIORITY_ADJUST = -1  # Lower priority for retries compared to regular requests
+
+
+# Zyte API key is used to authenticate and interact with the Zyte API, enabling features such as
+# request transparency and the ability to scrape data while bypassing anti-scraping mechanisms
+
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+ZYTE_API_KEY = os.getenv('ZYTE_API_KEY')
+
+ZYTE_API_TRANSPARENT_MODE = True
+
+ADDONS = {
+    "scrapy_zyte_api.Addon": 500,
+}
+
