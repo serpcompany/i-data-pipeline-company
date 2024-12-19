@@ -11,4 +11,6 @@ class TheresanaiforthatItem(scrapy.Item):
     ai_name = scrapy.Field()
     page_url = scrapy.Field()
     ai_page_content  = scrapy.Field()
-
+    id = scrapy.Field()
+    title = scrapy.Field()
+    ai_link = scrapy.Field()
