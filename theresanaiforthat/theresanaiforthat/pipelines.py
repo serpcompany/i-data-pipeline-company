@@ -34,7 +34,6 @@ class PostgreSQLPipeline:
             CREATE TABLE IF NOT EXISTS ai_tool_row_data (
                 id SERIAL PRIMARY KEY,
                 ai_name TEXT,
-                time_created TEXT,
                 page_url TEXT,
                 ai_page_content TEXT
             )
@@ -46,10 +45,10 @@ class PostgreSQLPipeline:
         try:
             self.cursor.execute(
                 """
-                INSERT INTO ai_tool_row_data (ai_name, time_created, page_url, ai_page_content)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO ai_tool_row_data (ai_name, page_url, ai_page_content)
+                VALUES (%s, %s, %s)
                 """,
-                (item['ai_name'], item['time_created'], item['page_url'], item['ai_page_content'])
+                (item['ai_name'], item['page_url'], item['ai_page_content'])
             )
             self.conn.commit()
         except Exception as e:

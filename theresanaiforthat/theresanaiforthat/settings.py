@@ -98,7 +98,7 @@ RETRY_ENABLED = True
 # Number of retries for failed requests
 RETRY_TIMES = 2  # Default is 2; this will try a total of 3 attempts (1 original + 2 retries)
 # Retry only on specific HTTP response codes
-RETRY_HTTP_CODES = [500, 502, 503, 504, 408]  # Add or customize the HTTP codes as needed
+RETRY_HTTP_CODES = [500, 502, 503, 504, 505, 408]  # Add or customize the HTTP codes as needed
 # Set the priority for retry requests
 RETRY_PRIORITY_ADJUST = -1  # Lower priority for retries compared to regular requests
 

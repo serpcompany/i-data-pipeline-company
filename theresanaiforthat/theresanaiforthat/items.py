@@ -9,7 +9,6 @@ import scrapy
 class TheresanaiforthatItem(scrapy.Item):
     # define the fields for your item here like:
     ai_name = scrapy.Field()
-    time_created = scrapy.Field()
     page_url = scrapy.Field()
     ai_page_content  = scrapy.Field()
 
