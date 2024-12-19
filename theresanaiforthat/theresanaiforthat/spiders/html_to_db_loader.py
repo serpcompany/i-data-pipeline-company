@@ -1,6 +1,10 @@
 import scrapy
 
 class AIToolSiteCrawler(scrapy.Spider):
+    """
+    A Scrapy spider to crawl AI tool categories and individual tool pages from the website 'theresanaiforthat.com'. 
+    The data includes tool names, URLs, and HTML content of their pages, and is stored as yielded items on a staging db.
+    """
     name = 'html_to_db'
     allowed_domains = ['theresanaiforthat.com']
     start_urls = ['https://theresanaiforthat.com/']
@@ -14,6 +18,16 @@ class AIToolSiteCrawler(scrapy.Spider):
     ai_tool_counter = 0
 
     def parse(self, response):
+        """
+        parse the main page to extract category links and adjust the order of predefined URLs chronologically for crawling.
+
+
+        Parameters:
+            response (scrapy.http.Response): The HTTP response object for the main page.
+
+        Yields:
+            scrapy.Request: Requests to category pages for further crawling.
+        """
         catagores_links = response.css('div.show_more_wrap')
 
         for link in catagores_links:
@@ -29,6 +43,15 @@ class AIToolSiteCrawler(scrapy.Spider):
                 callback=self.parse_category)
     
     def parse_category(self, response):
+        """
+        Parse a category page to extract AI tool links and navigate through pagination.
+
+        Parameters:
+            response (scrapy.http.Response): The HTTP response object for the category page.
+
+        Yields:
+            scrapy.Request: Requests to individual tool pages or the next page in pagination.
+        """
         ai_tools = response.css('a.stats')
         for tool in ai_tools:
             relative_path = tool.attrib['href']
@@ -48,7 +71,15 @@ class AIToolSiteCrawler(scrapy.Spider):
                 callback=self.parse_category)
     
     def savi_ai_tool_page(self, response):
-        
+        """
+        Parse an individual AI tool page to extract ai tool page content.
+
+        Parameters:
+            response (scrapy.http.Response): The HTTP response object for the tool's page.
+
+        Yields:
+            dict: A dictionary containing the tool's name, page URL, and HTML content of the page.
+        """
         relative_path = response.meta['relative_path']
         file_name_list = relative_path.strip('/').split('/')
         ai_name = file_name_list[1]
