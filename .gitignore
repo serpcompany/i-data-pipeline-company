@@ -2,3 +2,4 @@
 .env
 /theresanaiforthat/ai_tool_postgres_data
 __pycache__/
+data
