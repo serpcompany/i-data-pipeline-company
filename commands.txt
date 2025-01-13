@@ -1,0 +1,3 @@
+python manage.py build-company-cache
+
+python manage.py build-category-cache

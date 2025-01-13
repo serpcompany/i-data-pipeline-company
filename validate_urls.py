@@ -1,13 +1,15 @@
-""" This script validates URLs in a MySQL database table. It normalizes the URLs, checks if they are valid, and if they are reachable. It also checks if the domain is blacklisted. The results are saved in a CSV file. """
-
 import os
 from urllib.parse import urlparse, urlunparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
+import cloudscraper
 import mysql.connector
 import pandas as pd
-import requests
+from tqdm.auto import tqdm
 import validators
 from dotenv import load_dotenv
+
+tqdm.pandas()
 
 
 def normalize_url(url):
@@ -34,23 +36,8 @@ def normalize_url(url):
     if netloc.startswith("www."):
         netloc = netloc[4:]
 
-    # Remove query and fragment
-    query = ""
-    fragment = ""
-
-    # Normalize the path (remove trailing slash unless root)
-    path = parsed.path
-    if path and path != "/":
-        path = path.rstrip("/")
-
-    # Rebuild the URL without query or fragment
-    normalized = urlunparse((scheme, netloc, path, "", query, fragment))
-
-    # If after removing trailing slash the path is empty, ensure '/'
-    if not path:
-        normalized = urlunparse((scheme, netloc, "/", "", "", ""))
-
-    return normalized
+    # Create domain-only URL
+    return f"https://{netloc}"
 
 
 def get_domain(url):
@@ -84,35 +71,68 @@ def is_good_link(url, domain, blacklisted_domains):
     # Check validity of final URL
     if not validators.url(url):
         return False
-    # Check blacklist
-    if domain in blacklisted_domains:
+    # if subdomain (excluding www.), not valid
+    if domain.count(".") > 1 and not domain.startswith("www."):
         return False
+    # Check blacklist
+    for blacklisted_domain in blacklisted_domains:
+        if blacklisted_domain in domain:
+            return False
     return True
 
 
-def get_response_status_code(url, proxy_url=None, timeout=60):
-    """Get the response status code of a URL.
+def get_response_info(url, proxy_url=None, timeout=60):
+    """Get response info using cloudscraper to bypass common protections.
+    Tries both non-www and www versions of the URL if needed."""
+    if not isinstance(url, str) or not validators.url(url):
+        return False, None
 
-    Parameters:
-        url (str): The URL to check.
-        proxy_url (str): The proxy URL to use.
-        timeout (int): The timeout in seconds.
+    # Create a scraper with retry mechanism
+    scraper = cloudscraper.create_scraper(
+        browser={"browser": "chrome", "platform": "windows", "desktop": True},
+        delay=10,
+    )
 
-    Returns:
-        int: The response status code if the URL is reachable, False otherwise.
-    """
-    # Check if the URL is valid
-    if not validators.url(url):
-        return False
+    # Set up the proxy if provided
+    if proxy_url:
+        scraper.proxies = {"http": proxy_url, "https": proxy_url}
 
-    # Check if the URL is reachable
+    # First try without www
     try:
-        response = requests.get(
-            url, proxies={"http": proxy_url, "https": proxy_url}, timeout=timeout
-        )
-        return response.status_code
-    except requests.exceptions.RequestException:
-        return False
+        parsed = urlparse(url)
+        netloc = parsed.netloc.lower()
+        if netloc.startswith("www."):
+            netloc = netloc[4:]
+        non_www_url = f"https://{netloc}"
+
+        response = scraper.get(non_www_url, timeout=timeout, allow_redirects=True)
+        if response.status_code == 200:
+            return response.status_code, response.url
+    except Exception:
+        pass
+
+    # If that fails, try with www
+    try:
+        parsed = urlparse(url)
+        netloc = parsed.netloc.lower()
+        if not netloc.startswith("www."):
+            netloc = "www." + netloc
+        www_url = f"https://{netloc}"
+
+        response = scraper.get(www_url, timeout=timeout, allow_redirects=True)
+        return response.status_code, response.url
+    except Exception:
+        import traceback
+
+        traceback.print_exc()
+        return False, None
+
+
+def check_url(args):
+    """Worker function for checking URLs in parallel"""
+    index, url, proxy_url = args
+    response_status_code, final_url = get_response_info(url, proxy_url=proxy_url)
+    return index, response_status_code, final_url
 
 
 def main():
@@ -132,6 +152,9 @@ def main():
 
     PROXY_URL = os.getenv("PROXY_URL")
 
+    # Number of worker threads
+    MAX_WORKERS = 20
+
     # Load the blacklist from a file
     blacklist_file = "blacklist.txt"
     with open(blacklist_file, "r", encoding="utf-8") as f:
@@ -147,31 +170,61 @@ def main():
     )
 
     # Retrieve data into DataFrame
-    query = f"SELECT {COMPANY_ID_COLUMN}, {COMPANY_NAME_COLUMN}, {COMPANY_URL_COLUMN} FROM {COMPANY_TABLE}"
+    query = f"SELECT {COMPANY_ID_COLUMN}, {COMPANY_NAME_COLUMN}, {COMPANY_URL_COLUMN}, short_url, company_main_image_cloudflare_url FROM {COMPANY_TABLE} WHERE is_merchant_account = 0"
     df = pd.read_sql(query, conn)
 
     # Close the connection
     conn.close()
 
-    # Apply normalization
+    # Apply normalization and get domains
     df["normalized_url"] = df[COMPANY_URL_COLUMN].apply(normalize_url)
     df["domain"] = df["normalized_url"].apply(get_domain)
-    df["response_status_code"] = df["normalized_url"].apply(
-        lambda url: get_response_status_code(url, PROXY_URL)
-    )
 
-    # QC
+    # Run initial QC checks
+    print("Running initial QC checks...")
     df["qc"] = df.apply(
         lambda row: is_good_link(
-            row["normalized_url"], row["domain"], blacklisted_domains
+            row[COMPANY_URL_COLUMN], row["domain"], blacklisted_domains
         ),
         axis=1,
     )
-    df["final_qc"] = df.apply(
-        lambda row: row["qc"] and row["response_status_code"] == 200, axis=1
-    )
 
-    print(df.head())
+    print(f"Total URLs (before qc): {len(df)}")
+
+    # drop rows that failed initial QC
+    df = df[df["qc"]]
+
+    print(f"Total URLs (after qc): {len(df)}")
+
+    # Group by domain and keep first occurrence
+    df = df.groupby("domain").first().reset_index()
+
+    print(f"Total URLs (after grouping): {len(df)}")
+
+    # Initialize response columns
+    df["response_status_code"] = None
+    df["final_url"] = None
+
+    # Prepare arguments for parallel processing
+    url_args = [(i, row["normalized_url"], PROXY_URL) for i, row in df.iterrows()]
+
+    # Process URLs in parallel with progress bar
+    print("Checking response status for valid URLs...")
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = [executor.submit(check_url, args) for args in url_args]
+
+        for future in tqdm(as_completed(futures), total=len(futures)):
+            try:
+                index, response_status_code, final_url = future.result()
+                df.at[index, "response_status_code"] = response_status_code
+                df.at[index, "final_url"] = final_url
+            except Exception as e:
+                print(f"Error processing URL: {e}")
+
+    # Set final QC status
+    df["final_qc"] = df.apply(lambda row: row["response_status_code"] == 200, axis=1)
+
+    print(f"URLs passing final QC: {sum(df['final_qc'])}")
 
     df[
         [
@@ -180,8 +233,11 @@ def main():
             COMPANY_URL_COLUMN,
             "normalized_url",
             "domain",
-            "qc",
+            "final_url",
+            "short_url",
+            "company_main_image_cloudflare_url",
             "response_status_code",
+            "final_qc",
         ]
     ].to_csv("processed_company_urls.csv", index=False)
 

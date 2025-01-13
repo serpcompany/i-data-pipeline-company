@@ -3,3 +3,8 @@ mysql-connector-python
 pandas
 requests
 validators
+cloudscraper
+
+click==7.1.2
+psycopg2-binary==2.9.3
+ujson==5.4.0
