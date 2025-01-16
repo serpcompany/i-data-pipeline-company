@@ -74,7 +74,8 @@ def get_company_mysql_gen_data(
     results = cursor.fetchall()
     for search in results:
         # Normalize company name from keyword
-        company_name = normalize_company_name(search["keyword"])
+        # company_name = normalize_company_name(search["keyword"])
+        company_name = search["keyword"]
         company_id = company_id_map.get(company_name)
 
         if not company_id:
