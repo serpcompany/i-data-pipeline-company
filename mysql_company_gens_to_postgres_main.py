@@ -65,7 +65,7 @@ def get_company_mysql_gen_data(
         FROM projects_modules_search_map pmsm
         JOIN keywords k ON pmsm.keyword_id = k.id
         WHERE pmsm.module_id = %s
-        AND pmsm.introduction IS NOT NULL
+        AND pmsm.introduction IS NOT NULL AND pmsm.one_liner IS NOT NULL AND pmsm.excerpt IS NOT NULL
     """,
         (module_id,),
     )
